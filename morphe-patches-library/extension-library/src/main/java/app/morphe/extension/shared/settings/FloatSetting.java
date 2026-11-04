@@ -62,6 +62,7 @@ public class FloatSetting extends Setting<Float> {
     @NonNull
     @Override
     public Float get() {
-        return value;
+        Float locked = lockedValue;
+        return locked != null ? locked : value;
     }
 }

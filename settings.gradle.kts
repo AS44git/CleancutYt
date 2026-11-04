@@ -50,9 +50,10 @@ mapOf(
     }
 }
 
-// Include morphe-patches-library as composite build if it exists locally.
-// It is a multi-module project, so each artifact maps to a specific subproject.
-file("../morphe-patches-library").let { libDir ->
+// CleancutTube: morphe-patches-library is vendored in this repository (v2.1.0-dev.2) so its
+// settings can carry the permanent lock (Setting.lockTo). It builds as a composite build in
+// place of the published artifacts.
+file("morphe-patches-library").let { libDir ->
     if (libDir.exists()) {
         includeBuild(libDir) {
             dependencySubstitution {

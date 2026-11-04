@@ -76,6 +76,7 @@ public class BooleanSetting extends Setting<Boolean> {
     @NonNull
     @Override
     public Boolean get() {
-        return value;
+        Boolean locked = lockedValue;
+        return locked != null ? locked : value;
     }
 }

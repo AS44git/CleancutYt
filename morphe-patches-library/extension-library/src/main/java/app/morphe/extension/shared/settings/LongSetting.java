@@ -62,6 +62,7 @@ public class LongSetting extends Setting<Long> {
     @NonNull
     @Override
     public Long get() {
-        return value;
+        Long locked = lockedValue;
+        return locked != null ? locked : value;
     }
 }

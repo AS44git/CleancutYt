@@ -241,6 +241,24 @@ public abstract class Setting<T> {
      */
     protected volatile T value;
 
+    /**
+     * CleancutTube's permanent lock: a value this build always answers, whatever is saved,
+     * imported or reset. Set once as the settings load and never cleared.
+     */
+    @Nullable
+    protected volatile T lockedValue;
+
+    /** Locks this setting to {@code locked} for the life of the process. */
+    public final void lockTo(@NonNull T locked) {
+        lockedValue = Objects.requireNonNull(locked);
+        value = locked;
+    }
+
+    /** Whether CleancutTube's permanent lock holds this setting. */
+    public final boolean isLocked() {
+        return lockedValue != null;
+    }
+
     public Setting(String key, T defaultValue) {
         this(key, defaultValue, false, true, null, null);
     }
@@ -383,6 +401,11 @@ public abstract class Setting<T> {
      * Persistently saves the value.
      */
     public final void save(T newValue) {
+        if (lockedValue != null) {
+            // The permanent lock: nothing saves over it.
+            value = lockedValue;
+            return;
+        }
         if (value.equals(newValue)) {
             return;
         }

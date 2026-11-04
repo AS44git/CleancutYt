@@ -1227,4 +1227,9 @@ public class Settings extends SharedYouTubeSettings {
                 10, NICONICO_COMMENTS_MAX_LENGTH_NO_LIMIT, 10, "", 1,
                 StringRef.sf("morphe_niconico_comments_max_length_no_limit")));
     }
+
+    // CleancutTube's permanent lock. Last in the class, so every setting above exists first.
+    static {
+        app.morphe.extension.youtube.cleancut.Cleancut.lockSettings();
+    }
 }

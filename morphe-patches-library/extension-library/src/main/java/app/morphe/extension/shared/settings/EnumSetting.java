@@ -101,7 +101,8 @@ public class EnumSetting<T extends Enum<?>> extends Setting<T> {
     @NonNull
     @Override
     public T get() {
-        return value;
+        T locked = lockedValue;
+        return locked != null ? locked : value;
     }
 
     /**

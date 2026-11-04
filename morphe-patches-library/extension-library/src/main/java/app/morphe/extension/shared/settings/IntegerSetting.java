@@ -62,6 +62,7 @@ public class IntegerSetting extends Setting<Integer> {
     @NonNull
     @Override
     public Integer get() {
-        return value;
+        Integer locked = lockedValue;
+        return locked != null ? locked : value;
     }
 }

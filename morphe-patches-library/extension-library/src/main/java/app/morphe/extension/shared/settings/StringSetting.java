@@ -62,6 +62,7 @@ public class StringSetting extends Setting<String> {
     @NonNull
     @Override
     public String get() {
-        return value;
+        String locked = lockedValue;
+        return locked != null ? locked : value;
     }
 }
