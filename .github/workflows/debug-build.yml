@@ -1,0 +1,111 @@
+# Builds a test APK of CleancutTube: this repository's patch bundle (Morphe's patches plus the
+# CleancutTube lock), applied to the stock YouTube APK on the draft release "stock-apk".
+#
+# The result installs as its own app (package app.morphe.android.youtube) beside YouTube, and
+# signs in through MicroG RE (GmsCore), which must be installed first.
+#
+# Signed with a throwaway key and uploaded as a workflow artifact, not a release. The key
+# changes every run: uninstall the previous build first.
+
+name: Debug build
+
+on:
+  workflow_dispatch:
+    inputs:
+      stock_apk:
+        description: "Stock YouTube APK: release:NAME (an .apk on that release, drafts too) or a direct https:// link"
+        required: true
+        default: "release:stock-apk"
+      app_name:
+        description: "Name under the app's icon"
+        required: false
+        default: "YouTube"
+      morphe_cli_version:
+        description: "Morphe CLI (morphe-desktop) release tag"
+        required: false
+        default: "v1.20.0"
+
+permissions:
+  # write: draft releases (where the stock APK is kept) are only listed to tokens with push
+  # access. This workflow publishes nothing.
+  contents: write
+  packages: read
+
+env:
+  # YouTube's signing certificates (SHA-256), as Morphe records them.
+  YOUTUBE_SIGNERS: "5aad2bee6db95d17e05a08d7d1e64c10a1511879154483916b6ae6c7fd9cb0c6 3d7a1223019aa39d9ea0e3436ab7c0896bfb4fb679f4de5fe7c23f326c8f994a"
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build the patch bundle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GPR_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          chmod +x gradlew morphe-patches-library/gradlew
+          ./gradlew --no-daemon --stacktrace :patches:buildAndroid
+          ls -l patches/build/libs/
+          echo "BUNDLE=$(ls -t patches/build/libs/*.mpp | head -1)" >> "$GITHUB_ENV"
+
+      - name: Fetch the Morphe CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p tools/cli
+          gh release download "${{ inputs.morphe_cli_version }}" -R MorpheApp/morphe-cli -p '*.jar' -D tools/cli/
+          echo "CLI=$(ls -S tools/cli/*.jar | head -1)" >> "$GITHUB_ENV"
+
+      - name: Fetch and verify the stock YouTube APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          file="$(bash .github/scripts/fetch-stock-apk.sh "${{ inputs.stock_apk }}")"
+          apksigner="$(ls -t "$ANDROID_HOME"/build-tools/*/apksigner | head -1)"
+          signer="$("$apksigner" verify --print-certs "$file" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)"
+          echo "signer: $signer"
+          case " $YOUTUBE_SIGNERS " in
+            *" $signer "*) ;;
+            *) echo "::error::$file is not signed by YouTube (got $signer). Use the untouched APKMirror download."; exit 1 ;;
+          esac
+          aapt2="$(ls -t "$ANDROID_HOME"/build-tools/*/aapt2 | head -1)"
+          "$aapt2" dump badging "$file" | head -1
+          echo "STOCK_APK=$file" >> "$GITHUB_ENV"
+
+      - name: Patch YouTube
+        run: |
+          mkdir -p dist build
+          out="dist/cleancuttube-debug-$(git rev-parse --short HEAD).apk"
+          java -Xmx5g -jar "$CLI" patch \
+            -p "$BUNDLE" \
+              -e "Custom branding" -OcustomName="${{ inputs.app_name }}" \
+            --striplibs arm64-v8a \
+            -r build/patch-result.json \
+            -o "$out" \
+            "$STOCK_APK"
+          python3 - build/patch-result.json <<'PY'
+          import json, sys
+          r = json.load(open(sys.argv[1]))
+          name = lambda p: p if isinstance(p, str) else p.get("name")
+          applied = [name(p) for p in r.get("appliedPatches", [])]
+          failed = r.get("failedPatches", [])
+          print(len(applied), "applied")
+          for p in failed: print("    FAIL", name(p), "" if isinstance(p, str) else (p.get("exception") or p.get("error") or ""))
+          if "CleancutTube" not in applied: sys.exit("the CleancutTube patch did not apply")
+          PY
+          cp build/patch-result.json dist/
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: dist/
+          retention-days: 7
