@@ -8,6 +8,9 @@ package app.morphe.patches.youtube.cleancut
 
 import app.morphe.patcher.Fingerprint
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
+import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
+import app.morphe.patcher.util.smali.ExternalLabel
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patches.shared.misc.litho.filter.addLithoFilter
 import app.morphe.patches.shared.misc.request.buildRequestPatch
@@ -41,6 +44,27 @@ private object CleancutAutoNavStatusFingerprint : Fingerprint(
     parameters = listOf(),
 )
 
+private const val SWIPE_REFRESH_LAYOUT = "Landroidx/swiperefreshlayout/widget/SwipeRefreshLayout;"
+
+/**
+ * The pull-to-refresh circle's "start or stop refreshing" (androidx setRefreshing, renamed by R8;
+ * the only public final (boolean, boolean) method of the class, private one aside).
+ */
+private object CleancutSetRefreshingFingerprint : Fingerprint(
+    definingClass = SWIPE_REFRESH_LAYOUT,
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.FINAL),
+    returnType = "V",
+    parameters = listOf("Z", "Z"),
+)
+
+/** Its touch handling, which starts a pull. */
+private object CleancutRefreshInterceptTouchFingerprint : Fingerprint(
+    definingClass = SWIPE_REFRESH_LAYOUT,
+    name = "onInterceptTouchEvent",
+    returnType = "Z",
+    parameters = listOf("Landroid/view/MotionEvent;"),
+)
+
 @Suppress("unused")
 val cleancutTubePatch = bytecodePatch(
     name = "CleancutTube",
@@ -69,6 +93,26 @@ val cleancutTubePatch = bytecodePatch(
         // With nothing to show, the feed would keep asking for its next page; after the first
         // one, Home's page requests fail before they leave the phone.
         hookBuildRequestUrl("$EXTENSION->requestUrl")
+        // ...and the pull-to-refresh circle under the search bar never spins on Home: it would
+        // wait for a page that isn't coming.
+        CleancutSetRefreshingFingerprint.method.addInstructions(
+            0,
+            """
+                invoke-static { p1 }, $EXTENSION->refreshing(Z)Z
+                move-result p1
+            """,
+        )
+        CleancutRefreshInterceptTouchFingerprint.method.addInstructionsWithLabels(
+            0,
+            """
+                invoke-static { }, $EXTENSION->refreshBlocked()Z
+                move-result v0
+                if-eqz v0, :cleancut_pull
+                const/4 v0, 0x0
+                return v0
+            """,
+            ExternalLabel("cleancut_pull", CleancutRefreshInterceptTouchFingerprint.method.getInstruction(0)),
+        )
 
         // Autoplay never moves on to another video: the getter the player asks answers off.
         // The getter is tiny (no locals of its own), so the answer goes in p0, which nothing

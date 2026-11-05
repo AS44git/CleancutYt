@@ -138,6 +138,21 @@ public final class Cleancut {
         return HOME_BROWSE_ID.equals(shownBrowseId);
     }
 
+    /** Whether Home (the search page) is in front: not under search results or a video. */
+    public static boolean refreshBlocked() {
+        try {
+            return isHomeShown() && !NavigationBar.isSearchBarActive()
+                    && !PlayerType.getCurrent().isMaximizedOrFullscreen();
+        } catch (Throwable failure) {
+            return false;
+        }
+    }
+
+    /** Injection point: the pull-to-refresh circle starting or stopping. On Home it stays stopped. */
+    public static boolean refreshing(boolean refreshing) {
+        return refreshing && !refreshBlocked();
+    }
+
     /** YouTube's "autoplay is on" check, answered off. */
     public static boolean autoplayEnabled(boolean original) {
         return false;
