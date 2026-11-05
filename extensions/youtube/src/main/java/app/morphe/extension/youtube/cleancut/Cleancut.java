@@ -9,6 +9,7 @@ package app.morphe.extension.youtube.cleancut;
 import app.morphe.extension.shared.Logger;
 import app.morphe.extension.shared.settings.BooleanSetting;
 import app.morphe.extension.youtube.patches.ChangeStartPagePatch.StartPage;
+import app.morphe.extension.youtube.patches.WideSearchBarPatch.SearchbarType;
 import app.morphe.extension.youtube.patches.OpenShortsInRegularPlayerPatch.ShortsPlayerType;
 import app.morphe.extension.youtube.settings.Settings;
 
@@ -16,11 +17,11 @@ import app.morphe.extension.youtube.settings.Settings;
  * CleancutTube: YouTube as search and your You page, with no feed to fall into.
  *
  * <ul>
- *   <li>The bottom bar holds Search and You. Home, Shorts, Subscriptions, Create and
- *       Notifications are gone, and the app opens on search.</li>
- *   <li>Home is not just hidden: the page YouTube falls back to (its
- *       "FEwhat_to_watch") is replaced with the You page wherever YouTube asks for it, so
- *       pressing back never lands on recommendations ({@link #homeBrowseId}).</li>
+ *   <li>The bottom bar holds Home and You. Shorts, Subscriptions, Create and Notifications
+ *       are gone.</li>
+ *   <li>Home is the search page: the toolbar's wide search bar and nothing under it. Every
+ *       element of the recommendations feed is dropped as it's built
+ *       ({@code CleancutHomeFilter}, {@link #isHomeShown}).</li>
  *   <li>The watch page shows the video, its comments and its channel: no related videos, no
  *       autoplay, no end-screen suggestions, no mixes.</li>
  *   <li>Shorts open as a normal video with nothing to swipe to, and Shorts shelves are hidden
@@ -31,20 +32,16 @@ import app.morphe.extension.youtube.settings.Settings;
  * no switch, import or reset in the app moves it. The way out is uninstalling.
  */
 public final class Cleancut {
-    /** The page that replaces Home: the You tab (YouTube's library). */
-    public static final String HOME_REPLACEMENT_BROWSE_ID = "FElibrary";
-
     private Cleancut() {
     }
 
     private static final BooleanSetting[] LOCKED_ON = {
-            // Bottom bar: Search and You only.
-            Settings.HIDE_HOME_BUTTON,
+            // Bottom bar: Home (the search page) and You only.
             Settings.HIDE_SHORTS_BUTTON,
             Settings.HIDE_SUBSCRIPTIONS_BUTTON,
             Settings.HIDE_CREATE_BUTTON,
             Settings.HIDE_NOTIFICATIONS_BUTTON,
-            Settings.SHOW_SEARCH_BUTTON,
+            Settings.HIDE_FILTER_BAR_IN_FEED,
             Settings.HIDE_EXPLORE_BUTTON,
             // Watch page: the video and nothing after it.
             Settings.HIDE_PLAYER_RELATED_VIDEOS,
@@ -70,20 +67,37 @@ public final class Cleancut {
         try {
             for (BooleanSetting setting : LOCKED_ON) setting.lockTo(true);
             Settings.HIDE_NAVIGATION_BAR.lockTo(false);
+            Settings.HIDE_HOME_BUTTON.lockTo(false);
+            Settings.SHOW_SEARCH_BUTTON.lockTo(false);
             Settings.SHORTS_AUTOPLAY.lockTo(false);
-            Settings.CHANGE_START_PAGE.lockTo(StartPage.SEARCH);
+            // Opens on Home, which is the search page: the toolbar's wide search bar over nothing.
+            Settings.CHANGE_START_PAGE.lockTo(StartPage.DEFAULT);
+            Settings.SEARCHBAR_TYPE.lockTo(SearchbarType.WIDE);
             Settings.SHORTS_PLAYER_TYPE.lockTo(ShortsPlayerType.REGULAR_PLAYER);
         } catch (Throwable failure) {
             Logger.printException(() -> "CleancutTube could not lock its settings", failure);
         }
     }
 
-    /**
-     * The browse id YouTube loads for Home, wherever it asks for it: the You page instead, so
-     * neither a tap nor back nor a restart lands on recommendations.
-     */
-    public static String homeBrowseId(String original) {
-        return HOME_REPLACEMENT_BROWSE_ID;
+    /** YouTube's browse id for Home, its recommendations feed. */
+    static final String HOME_BROWSE_ID = "FEwhat_to_watch";
+
+    /** The browse id of the page shown, or empty for search results. */
+    private static volatile String shownBrowseId = "";
+
+    /** Injection point: a browse page is shown. */
+    public static void setBrowseId(String browseId) {
+        shownBrowseId = browseId == null ? "" : browseId;
+    }
+
+    /** Injection point: search results are shown (not a browse page). */
+    public static void clearBrowseId() {
+        shownBrowseId = "";
+    }
+
+    /** Whether the page shown is Home, which CleancutYt empties into the search page. */
+    public static boolean isHomeShown() {
+        return HOME_BROWSE_ID.equals(shownBrowseId);
     }
 
     /** YouTube's "autoplay is on" check, answered off. */

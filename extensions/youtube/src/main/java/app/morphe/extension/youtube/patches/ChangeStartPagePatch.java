@@ -92,8 +92,6 @@ public final class ChangeStartPagePatch extends BaseChangeStartPagePatch {
     private static final StartPage START_PAGE = Settings.CHANGE_START_PAGE.get();
 
     public static String overrideBrowseId(@NonNull String original) {
-        // CleancutTube: Home is the You page, whatever the start page.
-        if (true) return app.morphe.extension.youtube.cleancut.Cleancut.homeBrowseId(original);
         return processBrowseId(original, TRUE.equals(START_PAGE.isBrowseId), START_PAGE.id, START_PAGE.id);
     }
 

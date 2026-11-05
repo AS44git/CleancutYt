@@ -19,7 +19,7 @@ on:
       app_name:
         description: "Name under the app's icon"
         required: false
-        default: "YouTube"
+        default: "Youtube"
       morphe_cli_version:
         description: "Morphe CLI (morphe-desktop) release tag"
         required: false
@@ -86,7 +86,7 @@ jobs:
           out="dist/cleancuttube-debug-$(git rev-parse --short HEAD).apk"
           java -Xmx5g -jar "$CLI" patch \
             -p "$BUNDLE" \
-              -e "Custom branding" -OcustomName="${{ inputs.app_name }}" \
+              -e "Custom branding" -OcustomName="${{ inputs.app_name }}" -OappIcon=original \
             --striplibs arm64-v8a \
             -r build/patch-result.json \
             -o "$out" \
