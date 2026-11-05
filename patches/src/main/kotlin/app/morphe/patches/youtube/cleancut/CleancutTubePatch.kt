@@ -1,6 +1,6 @@
 /*
- * Copyright 2026 CleancutTube contributors
- * https://github.com/AS44git/CleancutTube
+ * Copyright 2026 CleancutYt contributors
+ * https://github.com/AS44git/CleancutYt
  *
  * Part of CleancutTube, a fork of Morphe's patches (GPL-3.0). Not affiliated with YouTube or Google.
  */
