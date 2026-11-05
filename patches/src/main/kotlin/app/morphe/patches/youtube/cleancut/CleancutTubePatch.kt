@@ -18,6 +18,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLa
 import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.util.smali.ExternalLabel
 import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patches.shared.misc.litho.filter.addLithoFilter
 import app.morphe.patches.shared.misc.request.buildRequestPatch
 import app.morphe.patches.shared.misc.request.hookBuildRequestUrl
@@ -32,8 +33,44 @@ import app.morphe.patches.youtube.misc.navigation.browseIdHookPatch
 import app.morphe.patches.youtube.shared.Constants.COMPATIBILITY_YOUTUBE
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import org.w3c.dom.Element
 
 private const val EXTENSION = "Lapp/morphe/extension/youtube/cleancut/Cleancut;"
+private const val UPDATER = "Lapp/morphe/extension/youtube/cleancut/Updater;"
+private const val INSTALL_PERMISSION = "android.permission.REQUEST_INSTALL_PACKAGES"
+
+/** YouTube's main activity being created: where the updater's quiet check starts. */
+private object CleancutMainActivityOnCreateFingerprint : Fingerprint(
+    definingClass = "Lcom/google/android/apps/youtube/app/watchwhile/MainActivity;",
+    name = "onCreate",
+    returnType = "V",
+    parameters = listOf("Landroid/os/Bundle;"),
+)
+
+/** Lets the updater hand a downloaded release to Android's package installer. */
+private val cleancutInstallPermissionPatch = resourcePatch {
+    execute {
+        // Updates: a quiet check of this repository's latest release a few seconds after the
+        // main screen opens.
+        CleancutMainActivityOnCreateFingerprint.method.addInstruction(
+            0,
+            "invoke-static/range { p0 .. p0 }, $UPDATER->onMainActivity(Landroid/app/Activity;)V",
+        )
+
+        document("AndroidManifest.xml").use { xml ->
+            val manifest = xml.documentElement
+            val permissions = xml.getElementsByTagName("uses-permission")
+            val declared = (0 until permissions.length)
+                .any { (permissions.item(it) as Element).getAttribute("android:name") == INSTALL_PERMISSION }
+            if (!declared) {
+                val element = xml.createElement("uses-permission")
+                element.setAttribute("android:name", INSTALL_PERMISSION)
+                manifest.insertBefore(element, manifest.firstChild)
+            }
+        }
+    }
+}
+
 private const val HOME_FILTER = "Lapp/morphe/extension/youtube/patches/components/CleancutHomeFilter;"
 
 /** The class behind YouTube's Autoplay switch: its constructor reads the "main_app_autonav" pref. */
@@ -102,6 +139,7 @@ val cleancutTubePatch = bytecodePatch(
         lithoFilterPatch,
         browseIdHookPatch,
         buildRequestPatch,
+        cleancutInstallPermissionPatch,
     )
     compatibleWith(COMPATIBILITY_YOUTUBE)
 
