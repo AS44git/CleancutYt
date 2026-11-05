@@ -1,9 +1,13 @@
 # CleancutTube
 
-YouTube with only search and your You page: no Home feed, Shorts, Subscriptions,
-Notifications, related videos, autoplay, end-screen suggestions or mixes. It opens on
-search, and Home is replaced by the You page wherever YouTube asks for it. Everything is
-locked in code: nothing in the app turns it off.
+YouTube with only a search page and your You page: no Home feed, Shorts, Subscriptions,
+Notifications, related videos, autoplay, end-screen suggestions or mixes. Home is the
+search page: YouTube's toolbar with a wide search bar and nothing under it (the feed is
+dropped as it's built, its next-page requests are refused, and its loading row and
+pull-to-refresh are hidden). No startup animation, YouTube's own icon, named "Youtube".
+Everything is locked in code: nothing in the app turns it off.
+
+Tested on the phone (YouTube 21.30.216): works.
 
 CleancutTube is a fork of [Morphe's patches](https://github.com/MorpheApp/morphe-patches)
 (GPLv3), with [morphe-patches-library](https://github.com/MorpheApp/morphe-patches-library)
@@ -12,8 +16,11 @@ Google or Morphe.
 
 ## What CleancutTube adds
 
-- `extensions/youtube/.../cleancut/Cleancut.java`: the locked settings and the Home redirect.
-- `patches/.../youtube/cleancut/CleancutTubePatch.kt`: Autoplay forced off.
+- `extensions/youtube/.../cleancut/Cleancut.java`: the locked settings and the search page.
+- `extensions/youtube/.../components/CleancutHomeFilter.java`: drops Home's feed.
+- `patches/.../youtube/cleancut/CleancutTubePatch.kt`: autoplay off, Home's page requests,
+  loading row and pull-to-refresh.
+- `extensions/shared-youtube/.../SharedYouTubeSettings.java`: no startup animation, original icon.
 - `morphe-patches-library/.../settings/Setting.java`: `lockTo`, which `get()` answers and
   `save()` can't move.
 
