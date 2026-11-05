@@ -50,13 +50,6 @@ private object CleancutMainActivityOnCreateFingerprint : Fingerprint(
 /** Lets the updater hand a downloaded release to Android's package installer. */
 private val cleancutInstallPermissionPatch = resourcePatch {
     execute {
-        // Updates: a quiet check of this repository's latest release a few seconds after the
-        // main screen opens.
-        CleancutMainActivityOnCreateFingerprint.method.addInstruction(
-            0,
-            "invoke-static/range { p0 .. p0 }, $UPDATER->onMainActivity(Landroid/app/Activity;)V",
-        )
-
         document("AndroidManifest.xml").use { xml ->
             val manifest = xml.documentElement
             val permissions = xml.getElementsByTagName("uses-permission")
@@ -144,6 +137,13 @@ val cleancutTubePatch = bytecodePatch(
     compatibleWith(COMPATIBILITY_YOUTUBE)
 
     execute {
+        // Updates: a quiet check of this repository's latest release a few seconds after the
+        // main screen opens.
+        CleancutMainActivityOnCreateFingerprint.method.addInstruction(
+            0,
+            "invoke-static/range { p0 .. p0 }, $UPDATER->onMainActivity(Landroid/app/Activity;)V",
+        )
+
         // The search page: Home's feed dropped element by element, so only the toolbar and its
         // search bar are left. The filter knows the page shown from the browse id hook.
         addBrowseIdHook("$EXTENSION->setBrowseId(Ljava/lang/String;)V")
