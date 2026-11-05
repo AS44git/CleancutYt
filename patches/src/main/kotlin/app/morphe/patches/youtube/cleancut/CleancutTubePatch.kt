@@ -7,7 +7,13 @@
 package app.morphe.patches.youtube.cleancut
 
 import app.morphe.patcher.Fingerprint
+import app.morphe.patcher.InstructionLocation.MatchAfterWithin
+import app.morphe.patcher.checkCast
+import app.morphe.patcher.extensions.InstructionExtensions.addInstruction
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.methodCall
+import app.morphe.patcher.resource.ResourceType
+import app.morphe.patcher.resourceLiteral
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructionsWithLabels
 import app.morphe.patcher.extensions.InstructionExtensions.getInstruction
 import app.morphe.patcher.util.smali.ExternalLabel
@@ -25,6 +31,7 @@ import app.morphe.patches.youtube.misc.navigation.addSearchResultsHook
 import app.morphe.patches.youtube.misc.navigation.browseIdHookPatch
 import app.morphe.patches.youtube.shared.Constants.COMPATIBILITY_YOUTUBE
 import com.android.tools.smali.dexlib2.AccessFlags
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 
 private const val EXTENSION = "Lapp/morphe/extension/youtube/cleancut/Cleancut;"
 private const val HOME_FILTER = "Lapp/morphe/extension/youtube/patches/components/CleancutHomeFilter;"
@@ -65,6 +72,20 @@ private object CleancutRefreshInterceptTouchFingerprint : Fingerprint(
     parameters = listOf("Landroid/view/MotionEvent;"),
 )
 
+/**
+ * The "loading more" row YouTube puts at the end of a list while the next page loads: its
+ * constructor inflates the loading_status_view layout into a FrameLayout.
+ */
+private object CleancutLoadingRowFingerprint : Fingerprint(
+    accessFlags = listOf(AccessFlags.PUBLIC, AccessFlags.CONSTRUCTOR),
+    returnType = "V",
+    filters = listOf(
+        resourceLiteral(ResourceType.LAYOUT, "loading_status_view"),
+        methodCall(smali = "Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;"),
+        checkCast(type = "Landroid/widget/FrameLayout;", location = MatchAfterWithin(3)),
+    ),
+)
+
 @Suppress("unused")
 val cleancutTubePatch = bytecodePatch(
     name = "CleancutTube",
@@ -93,6 +114,16 @@ val cleancutTubePatch = bytecodePatch(
         // With nothing to show, the feed would keep asking for its next page; after the first
         // one, Home's page requests fail before they leave the phone.
         hookBuildRequestUrl("$EXTENSION->requestUrl")
+        // ...the "loading more" row stays hidden on Home (Home's list is empty, so the row would
+        // sit under the search bar spinning for a page that isn't coming)...
+        CleancutLoadingRowFingerprint.let {
+            it.method.apply {
+                val castIndex = it.instructionMatches.last().index
+                val row = getInstruction<OneRegisterInstruction>(castIndex).registerA
+                addInstruction(castIndex + 1, "invoke-static { v$row }, $EXTENSION->onLoadingRow(Landroid/view/View;)V")
+            }
+        }
+
         // ...and the pull-to-refresh circle under the search bar never spins on Home: it would
         // wait for a page that isn't coming.
         CleancutSetRefreshingFingerprint.method.addInstructions(

@@ -6,6 +6,8 @@
  */
 package app.morphe.extension.youtube.cleancut;
 
+import android.view.View;
+
 import app.morphe.extension.shared.Logger;
 import app.morphe.extension.shared.patches.CustomBrandingPatch.BrandingTheme;
 import app.morphe.extension.shared.patches.SplashAnimationPatch.SplashScreenAnimationStyle;
@@ -146,6 +148,34 @@ public final class Cleancut {
         } catch (Throwable failure) {
             return false;
         }
+    }
+
+    /**
+     * Injection point: YouTube built a "loading more" row. On Home (empty, so the row would sit
+     * under the search bar spinning) it's hidden each time it's shown; anywhere else it shows.
+     */
+    public static void onLoadingRow(View row) {
+        if (row == null) return;
+        try {
+            row.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View view) {
+                    updateLoadingRow(view);
+                }
+
+                @Override
+                public void onViewDetachedFromWindow(View view) {
+                }
+            });
+            row.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> updateLoadingRow(view));
+        } catch (Throwable failure) {
+            Logger.printException(() -> "CleancutYt could not watch a loading row", failure);
+        }
+    }
+
+    private static void updateLoadingRow(View row) {
+        int visibility = refreshBlocked() ? View.GONE : View.VISIBLE;
+        if (row.getVisibility() != visibility) row.setVisibility(visibility);
     }
 
     /** Injection point: the pull-to-refresh circle starting or stopping. On Home it stays stopped. */
