@@ -7,11 +7,16 @@
 package app.morphe.extension.youtube.cleancut;
 
 import app.morphe.extension.shared.Logger;
+import app.morphe.extension.shared.patches.CustomBrandingPatch.BrandingTheme;
+import app.morphe.extension.shared.patches.SplashAnimationPatch.SplashScreenAnimationStyle;
+import app.morphe.extension.shared.settings.SharedYouTubeSettings;
 import app.morphe.extension.shared.settings.BooleanSetting;
 import app.morphe.extension.youtube.patches.ChangeStartPagePatch.StartPage;
 import app.morphe.extension.youtube.patches.WideSearchBarPatch.SearchbarType;
 import app.morphe.extension.youtube.patches.OpenShortsInRegularPlayerPatch.ShortsPlayerType;
 import app.morphe.extension.youtube.settings.Settings;
+import app.morphe.extension.youtube.shared.NavigationBar;
+import app.morphe.extension.youtube.shared.PlayerType;
 
 /**
  * CleancutTube: YouTube as search and your You page, with no feed to fall into.
@@ -73,6 +78,9 @@ public final class Cleancut {
             // Opens on Home, which is the search page: the toolbar's wide search bar over nothing.
             Settings.CHANGE_START_PAGE.lockTo(StartPage.DEFAULT);
             Settings.SEARCHBAR_TYPE.lockTo(SearchbarType.WIDE);
+            // YouTube's own look: its icon, and no startup animation (Morphe's is the default).
+            SharedYouTubeSettings.SPLASH_SCREEN_STYLE.lockTo(SplashScreenAnimationStyle.DISABLED);
+            SharedYouTubeSettings.CUSTOM_BRANDING_ICON.lockTo(BrandingTheme.ORIGINAL);
             Settings.SHORTS_PLAYER_TYPE.lockTo(ShortsPlayerType.REGULAR_PLAYER);
         } catch (Throwable failure) {
             Logger.printException(() -> "CleancutTube could not lock its settings", failure);
@@ -87,7 +95,37 @@ public final class Cleancut {
 
     /** Injection point: a browse page is shown. */
     public static void setBrowseId(String browseId) {
-        shownBrowseId = browseId == null ? "" : browseId;
+        String id = browseId == null ? "" : browseId;
+        if (HOME_BROWSE_ID.equals(id) && !HOME_BROWSE_ID.equals(shownBrowseId)) {
+            // Arriving on Home: its next page request may go out once.
+            homePageRequests = 0;
+        }
+        shownBrowseId = id;
+    }
+
+    /** Where a blocked request goes: nowhere, so it fails at once without leaving the phone. */
+    static final String BLOCKED_URL = "https://127.0.0.1:9/cleancutyt-blocked";
+
+    /** Page requests made while Home is shown, since arriving on it. */
+    private static volatile int homePageRequests;
+
+    /**
+     * Injection point: every request's URL, as it's built. Home shows nothing, so its feed
+     * sees the end of an empty list and asks for the next page, again and again. Once Home is
+     * shown, its first page request goes out (the page loads) and later ones are refused.
+     * Search, channels, the watch page and the You page are never touched.
+     */
+    public static String requestUrl(String url) {
+        try {
+            if (url == null || !isHomeShown() || !url.contains("/youtubei/v1/browse")) return url;
+            if (NavigationBar.isSearchBarActive() || PlayerType.getCurrent().isMaximizedOrFullscreen()) return url;
+            if (++homePageRequests <= 1) return url;
+            Logger.printDebug(() -> "CleancutYt: refused Home's next page");
+            return BLOCKED_URL;
+        } catch (Throwable failure) {
+            Logger.printException(() -> "CleancutYt request check failed", failure);
+            return url;
+        }
     }
 
     /** Injection point: search results are shown (not a browse page). */

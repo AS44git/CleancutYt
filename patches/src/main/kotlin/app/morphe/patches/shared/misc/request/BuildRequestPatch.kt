@@ -56,3 +56,20 @@ internal fun hookBuildRequest(
         }
     }
 }
+
+/**
+ * CleancutYt: hands each request's URL to [descriptor] before the request is built, and builds
+ * the request with the URL it returns. A static extension method `(String) -> String`.
+ */
+internal fun hookBuildRequestUrl(descriptor: String) {
+    buildRequestMethod.get()!!.apply {
+        addInstructions(
+            builderIndex,
+            """
+                invoke-static { v$urlRegister }, $descriptor(Ljava/lang/String;)Ljava/lang/String;
+                move-result-object v$urlRegister
+            """
+        )
+        builderIndex += 2
+    }
+}

@@ -174,4 +174,11 @@ public class SharedYouTubeSettings extends BaseSettings {
     private static String getDefaultSpoofAppVersionTarget() {
         return ""; // Modified during patching.
     }
+
+    // CleancutYt's permanent lock for the settings read while the app starts, before YouTube's
+    // own Settings class loads: YouTube's icon and no startup animation.
+    static {
+        SPLASH_SCREEN_STYLE.lockTo(app.morphe.extension.shared.patches.SplashAnimationPatch.SplashScreenAnimationStyle.DISABLED);
+        CUSTOM_BRANDING_ICON.lockTo(app.morphe.extension.shared.patches.CustomBrandingPatch.BrandingTheme.ORIGINAL);
+    }
 }

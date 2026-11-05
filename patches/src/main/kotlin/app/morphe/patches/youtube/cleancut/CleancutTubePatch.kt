@@ -10,6 +10,8 @@ import app.morphe.patcher.Fingerprint
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patches.shared.misc.litho.filter.addLithoFilter
+import app.morphe.patches.shared.misc.request.buildRequestPatch
+import app.morphe.patches.shared.misc.request.hookBuildRequestUrl
 import app.morphe.patches.youtube.layout.hide.endscreensuggestedvideo.hideEndScreenSuggestedVideoPatch
 import app.morphe.patches.youtube.layout.hide.relatedvideos.hideRelatedVideosPatch
 import app.morphe.patches.youtube.layout.startpage.changeStartPagePatch
@@ -54,6 +56,7 @@ val cleancutTubePatch = bytecodePatch(
         hideRelatedVideosPatch,
         lithoFilterPatch,
         browseIdHookPatch,
+        buildRequestPatch,
     )
     compatibleWith(COMPATIBILITY_YOUTUBE)
 
@@ -63,6 +66,9 @@ val cleancutTubePatch = bytecodePatch(
         addBrowseIdHook("$EXTENSION->setBrowseId(Ljava/lang/String;)V")
         addSearchResultsHook("$EXTENSION->clearBrowseId()V")
         addLithoFilter(HOME_FILTER)
+        // With nothing to show, the feed would keep asking for its next page; after the first
+        // one, Home's page requests fail before they leave the phone.
+        hookBuildRequestUrl("$EXTENSION->requestUrl")
 
         // Autoplay never moves on to another video: the getter the player asks answers off.
         // The getter is tiny (no locals of its own), so the answer goes in p0, which nothing
